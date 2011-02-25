@@ -1,0 +1,7 @@
+.classpath
+.project
+target
+lib_managed
+project/boot
+project/plugins/project
+src_managed

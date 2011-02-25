@@ -1,0 +1,21 @@
+  def parseMongoDBObject2(obj: JObject) = {
+    def _parseObject(fields: List[JField], obj: BasicDBObject): BasicDBObject = fields match {
+      case Nil => obj
+      case JField(name, JScalar(value)) :: tail =>
+        obj.put(name, value);
+        _parseObject(tail, obj)
+        
+      case JField(name, a @ JArray(_)) :: tail =>
+        val arr = parseArray(a).foldLeft(new java.util.ArrayList[Any]) { (jl, i) =>
+          jl.add(i)
+          jl
+        }
+        obj.put(name, arr)
+        _parseObject(tail, obj)
+        
+      case JField(name, JObject(fields)) :: tail =>
+        obj.put(name, _parseObject(fields, new BasicDBObject))
+        _parseObject(tail, obj)
+    }
+    _parseObject(obj.obj, new BasicDBObject)
+  }
