@@ -50,6 +50,10 @@ object Json {
       case JField(name, JObject(fields)) :: tail =>
         obj.put(name, _parseObject(fields, new BasicDBObject))
         _parseObject(tail, obj)
+      
+      case JField(name, _) :: tail =>
+        obj.put(name, null)
+        _parseObject(tail, obj) // JNull, JNothing
     }
     _parseObject(obj.obj, new BasicDBObject)
   }
