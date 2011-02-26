@@ -16,6 +16,11 @@ object JScalar {
 }
 
 object Json {
+  
+  val conversionMap: Map[String, Any => Any] = Map(
+    "$date" -> (d => new java.util.Date(d.asInstanceOf[BigInt].longValue))
+  )
+  
   def toJava[A](sl: List[A]) =
     sl.foldLeft(new java.util.ArrayList[A](sl.size)) { (jl, i) =>
       jl.add(i)
@@ -34,6 +39,12 @@ object Json {
     _parseArray(jarr.arr, Nil)
   }
   
+  /* Convert a single-field object into some type. Useful for mapping mongo extended types. */
+  def transformMongoType(fields: List[JField]): Option[Any] = fields match {
+    case JField(name, JScalar(value)) :: Nil => conversionMap.get(name).map(_(value))
+    case _ => None
+  }
+  
   /** JObject => BasicDBObject */
   def parseMongoDBObject(obj: JObject) = {
     def _parseObject(fields: List[JField], obj: BasicDBObject): BasicDBObject = fields match {
@@ -48,7 +59,9 @@ object Json {
         _parseObject(tail, obj)
         
       case JField(name, JObject(fields)) :: tail =>
-        obj.put(name, _parseObject(fields, new BasicDBObject))
+        obj.put(name, transformMongoType(fields) getOrElse {
+          _parseObject(fields, new BasicDBObject)
+        })
         _parseObject(tail, obj)
       
       case JField(name, _) :: tail =>
