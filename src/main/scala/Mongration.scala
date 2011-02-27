@@ -8,8 +8,8 @@ import JsonAST._
 
 trait Mongration extends Project {
   import Mongration._
-  def configureMongo: Configurator
-  lazy val (mongo_con, mongo_db) = configure(configureMongo)
+  def mongoConfig: Configurator
+  lazy val (mongo_con, mongo_db) = configure(mongoConfig)
   
   def seed = "src" / "test" / "resources" / "seed.json"
   
@@ -17,8 +17,6 @@ trait Mongration extends Project {
     mongo_db.dropDatabase()
     None
   } describedAs("[!] Destroy the current database. Use with caution.")
-  
-  def reportError(e: String) = log.error(e)
   
   lazy val mongoSeed = task {
     FileUtilities.readString(seed.asFile, log) match {
@@ -38,6 +36,13 @@ trait Mongration extends Project {
     None
   } describedAs("Populate the database with seed data.")
   
+  lazy val mongoReset = task {
+    mongoSeed.run
+    None
+  } dependsOn(mongoDrop)
+  
+  def reportError(e: String) = log.error(e)
+  
   def persistCollection(db: DB)(c: CollectionDef) = c match {
     case CollectionDef(name, docs, indexes) =>
       val col = db.getCollection(name)
@@ -49,17 +54,9 @@ trait Mongration extends Project {
       }
   }
   
-  lazy val mongoReset = task {
-    mongoSeed.run
-    None
-  } dependsOn(mongoDrop)
-  
 }
 
 object Mongration {
-  
-  type Host = (String, Int)
-  type Auth = (String, String)
   /* A mongo collection index definition. */
   type IndexDef = (BasicDBObject, Option[BasicDBObject])
   
@@ -76,7 +73,7 @@ object Mongration {
       (m, db)
   }
   
-  /* Convert a JArray into an Either[String, IndexDef]. */
+  /** Convert a JArray into an Either[String, IndexDef]. */
   def indexDef(where: String)(jv: JValue): Either[String, IndexDef] = jv match {
     case JArray((index: JObject) :: xs) =>
       val iparams = xs match {
@@ -87,21 +84,13 @@ object Mongration {
     case _ => Left("Invalid index definition in %s!" format where)
   }
   
-  /* Parse a JSON object into an Either[String, CollectionDef]. */
+  /** Parse a JSON object into an Either[String, CollectionDef]. */
   def collectionDefs(obj: JValue): Either[String, CollectionDef] = obj match {
-    case o: JObject => collectionDefs3(o)
+    case o: JObject => collectionDefs(o)
     case x => Left("Expected object but found %s!" format (x.getClass.getName))
   }
   
-  /* Contatenate a value with a list of values of the same type. */
-  def favorLeft[A, B](a: Either[List[A], List[B]], e: Either[A, B]) = (a, e) match {
-    case (Left(xs), Left(x)) => Left(x :: xs)
-    case (Left(xs), _) => Left(xs)
-    case (_, Left(x)) => Left(x :: Nil)
-    case (Right(xs), Right(x)) => Right(x :: xs)
-  }
-  
-  def collectionDefs3(o: JObject) = 
+  def collectionDefs(o: JObject): Either[String, CollectionDef] = 
     /* Can't deconstruct a list because order shouldn't matter. */
     (o \ "name", o \ "docs", o \ "indexes") match {
       case (JField(_, JString(collection)), JField(_, JArray(jdocs)), indexes) =>
@@ -125,6 +114,14 @@ object Mongration {
         }
       case _ => Left("Failed to parse collection metadata!")
     }
+  
+  /** Concatenate a value with a list of values of the same type. */
+  def favorLeft[A, B](a: Either[List[A], List[B]], e: Either[A, B]) = (a, e) match {
+    case (Left(xs), Left(x)) => Left(x :: xs)
+    case (Left(xs), _) => Left(xs)
+    case (_, Left(x)) => Left(x :: Nil)
+    case (Right(xs), Right(x)) => Right(x :: xs)
+  }
   
   /* JObject => Option[BasicDBObject] */
   def transformObj(obj: JValue) = obj match {

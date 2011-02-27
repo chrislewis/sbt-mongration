@@ -22,7 +22,7 @@ class MongoJObject(obj: JObject) {
 object Json {
   
   val conversionMap: Map[String, Any => Any] = Map(
-    "$date" -> (d => new java.util.Date(d.asInstanceOf[BigInt].longValue))
+    "$date" -> (d => new java.util.Date(d.toString.toLong))
   )
   
   def toJava[A](sl: List[A]) =
