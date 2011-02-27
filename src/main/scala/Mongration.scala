@@ -8,8 +8,8 @@ import JsonAST._
 
 trait Mongration extends Project {
   import Mongration._
-  def configureMongo: (Mongo, DB)
-  lazy val (mongo_con, mongo_db) = configureMongo
+  def configureMongo: Configurator
+  lazy val (mongo_con, mongo_db) = configure(configureMongo)
   
   def seed = "src" / "test" / "resources" / "seed.json"
   
@@ -68,11 +68,11 @@ object Mongration {
   /* pimpin */
   implicit def JObject2MongoJObject(j: JObject) = new MongoJObject(j)
   
-  def configure(host: Host, database: String, auth: Auth) = (host, auth) match {
-    case ((host, port), (user, password)) =>
+  def configure(cfg: Configurator) = cfg match {
+    case Configurator(host, port, database, auth) =>
       val m = new Mongo(host, port)
       val db = m.getDB(database)
-      db.authenticate(user, password.toArray)
+      auth foreach { case Auth(u, p) => db.authenticate(u, p.toArray) }
       (m, db)
   }
   
@@ -108,7 +108,7 @@ object Mongration {
         /* Accumulate index definitions if provided. */
         val idefs = indexes match {
           case JField(_, JArray(indexes)) =>
-            val init: Either[List[String], List[IndexDef]] /* help computer */ = Right(Nil)
+            val init: Either[List[String], List[IndexDef]] = Right(Nil)
             indexes
               .map(indexDef(collection))
               .foldLeft(init)(favorLeft)
@@ -123,7 +123,7 @@ object Mongration {
           case (Left(e), _) => Left(e mkString ", ")
           case (_, Left(e)) => Left(e)
         }
-      case _ => Left("Failed to parse collection meta!")
+      case _ => Left("Failed to parse collection metadata!")
     }
   
   /* JObject => Option[BasicDBObject] */
