@@ -15,6 +15,10 @@ object JScalar {
   }
 }
 
+class MongoJObject(obj: JObject) {
+  def asDBObject = Json.parseMongoDBObject(obj)
+}
+
 object Json {
   
   val conversionMap: Map[String, Any => Any] = Map(
@@ -39,7 +43,7 @@ object Json {
     _parseArray(jarr.arr, Nil)
   }
   
-  /* Convert a single-field object into some type. Useful for mapping mongo extended types. */
+  /** Convert a single-field object into some type. Useful for mapping mongo extended types. */
   def transformMongoType(fields: List[JField]): Option[Any] = fields match {
     case JField(name, JScalar(value)) :: Nil => conversionMap.get(name).map(_(value))
     case _ => None
