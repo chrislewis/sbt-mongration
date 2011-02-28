@@ -1,8 +1,6 @@
-package mongration.json
+package mongo.json
 
-import net.liftweb.json._
-import JsonAST._
-import com.mongodb.BasicDBObject
+import net.liftweb.json.JsonAST._
 
 /** General extractor for scalar JValue types.*/
 object JScalar {
@@ -15,29 +13,21 @@ object JScalar {
   }
 }
 
-class MongoJObject(obj: JObject) {
-  def asDBObject = Json.parseMongoDBObject(obj)
-}
-
 object Json {
+  import com.mongodb.BasicDBObject
+  import compat.collections.sj.Implicits._
   
   val conversionMap: Map[String, Any => Any] = Map(
     "$date" -> (d => new java.util.Date(d.toString.toLong))
   )
   
-  def toJava[A](sl: List[A]) =
-    sl.foldLeft(new java.util.ArrayList[A](sl.size)) { (jl, i) =>
-      jl.add(i)
-      jl
-    }
-  
   /** JArray => List[Any] */
-  def parseArray(jarr: JArray): List[Any] = {
+  def parseArray[A](f: JObject => A)(jarr: JArray): List[Any] = {
     def _parseArray(values: List[JValue], acc: List[Any]): List[Any] = values match {
       case Nil => acc
       case JScalar(value) :: xs => _parseArray(xs, value :: acc) 
       case JArray(values) :: xs => _parseArray(xs, _parseArray(values, Nil) :: acc)
-      case (o @ JObject(_)) :: xs => _parseArray(xs, parseMongoDBObject(o) :: acc)
+      case (o @ JObject(_)) :: xs => _parseArray(xs, f(o) :: acc)
       case _ => _parseArray(values, acc) // JNull, JNothing
     }
     _parseArray(jarr.arr, Nil)
@@ -50,7 +40,7 @@ object Json {
   }
   
   /** JObject => BasicDBObject */
-  def parseMongoDBObject(obj: JObject) = {
+  def parseMongoDBObject(obj: JObject): BasicDBObject = {
     def _parseObject(fields: List[JField], obj: BasicDBObject): BasicDBObject = fields match {
       case Nil => obj
       case JField(name, JScalar(value)) :: tail =>
@@ -58,14 +48,12 @@ object Json {
         _parseObject(tail, obj)
         
       case JField(name, a @ JArray(_)) :: tail =>
-        val arr = toJava(parseArray(a))
-        obj.put(name, arr)
+        obj.put(name, parseArray(parseMongoDBObject)(a).asJava)
         _parseObject(tail, obj)
         
-      case JField(name, JObject(fields)) :: tail =>
-        obj.put(name, transformMongoType(fields) getOrElse {
-          _parseObject(fields, new BasicDBObject)
-        })
+      case JField(name, JObject(flds)) :: tail =>
+        val procd = transformMongoType(flds) getOrElse { _parseObject(flds, new BasicDBObject) }
+        obj.put(name, procd)
         _parseObject(tail, obj)
       
       case JField(name, _) :: tail =>
@@ -74,4 +62,5 @@ object Json {
     }
     _parseObject(obj.obj, new BasicDBObject)
   }
+  
 }
