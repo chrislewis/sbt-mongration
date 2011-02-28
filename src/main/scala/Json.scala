@@ -15,7 +15,7 @@ object JScalar {
 
 object Json {
   import com.mongodb.BasicDBObject
-  import compat.collections.sj.Implicits._
+  import org.scala_tools.javautils.Imports._
   
   val conversionMap: Map[String, Any => Any] = Map(
     "$date" -> (d => new java.util.Date(d.toString.toLong))
