@@ -13,29 +13,31 @@ object JScalar {
   }
 }
 
-object Json {
+trait Conversions {
+  implicit val conversionMap: Map[String, Any => Any] = Map(
+    "$date" -> (d => new java.util.Date(d.toString.toLong))
+  )
+}
+
+object Json extends Conversions {
   import com.mongodb.BasicDBObject
   import org.scala_tools.javautils.Imports._
   
-  val conversionMap: Map[String, Any => Any] = Map(
-    "$date" -> (d => new java.util.Date(d.toString.toLong))
-  )
-  
   /** JArray => List[Any] */
   def parseArray[A](f: JObject => A)(jarr: JArray): List[Any] = {
-    def _parseArray(values: List[JValue], acc: List[Any]): List[Any] = values match {
+    def parseArray(values: List[JValue], acc: List[Any]): List[Any] = values match {
       case Nil => acc
-      case JScalar(value) :: xs => _parseArray(xs, value :: acc) 
-      case JArray(values) :: xs => _parseArray(xs, _parseArray(values, Nil) :: acc)
-      case (o @ JObject(_)) :: xs => _parseArray(xs, f(o) :: acc)
-      case _ => _parseArray(values, acc) // JNull, JNothing
+      case JScalar(value) :: xs => parseArray(xs, value :: acc) 
+      case JArray(values) :: xs => parseArray(xs, parseArray(values, Nil) :: acc)
+      case (o: JObject) :: xs => parseArray(xs, f(o) :: acc)
+      case x :: xs => parseArray(xs, acc) // JNull, JNothing
     }
-    _parseArray(jarr.arr, Nil)
+    parseArray(jarr.arr, Nil)
   }
   
   /** Convert a single-field object into some type. Useful for mapping mongo extended types. */
-  def transformMongoType(fields: List[JField]): Option[Any] = fields match {
-    case JField(name, JScalar(value)) :: Nil => conversionMap.get(name).map(_(value))
+  def transformMongoType(fields: List[JField])(implicit conv: Map[String, Any => Any]): Option[Any] = fields match {
+    case JField(name, JScalar(value)) :: Nil => conv.get(name).map(_(value))
     case _ => None
   }
   
@@ -47,7 +49,7 @@ object Json {
         obj.put(name, value);
         _parseObject(tail, obj)
         
-      case JField(name, a @ JArray(_)) :: tail =>
+      case JField(name, a: JArray) :: tail =>
         obj.put(name, parseArray(parseMongoDBObject)(a).asJava)
         _parseObject(tail, obj)
         

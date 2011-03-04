@@ -6,6 +6,9 @@ class Project(info: ProjectInfo) extends PluginProject(info)
   val mongo = "org.mongodb" % "mongo-java-driver" % "1.3"
   val lift_json = "net.liftweb" %% "lift-json" % "2.2"
   val java_utils = "org.scala-tools.javautils" %% "javautils" % "0.2"
+  //val dispatch
+  
+  
   val specs = "org.scala-tools.testing" %% "specs" % "1.6.1" % "test"
   
   // gh issues

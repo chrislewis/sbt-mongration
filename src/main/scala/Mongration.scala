@@ -8,8 +8,6 @@ import JsonAST._
 
 trait Mongration extends Project {
   
-  import Seed._
-  
   def mongoConfig: Configurator
   lazy val (mongo_con, mongo_db) = configure(mongoConfig)
   
@@ -23,18 +21,13 @@ trait Mongration extends Project {
   lazy val mongoSeed = task {
     FileUtilities.readString(seed.asFile, log) match {
       case Left(err) => log.error(err)
-      case Right(value) =>
-        JsonParser.parse(value) match {
-          case JArray(values) =>
-            val persist = persistCollection(mongo_db)_
-            values
-              .map(collectionDefs)
-              // TODO fold into a single Either to avoid persiting anything if there were errors
-              .map(_.fold(reportError, persist))
-          case _ => log.error("Incomprehensible seed!")
-        }
+      case Right(raw) => JsonParser.parse(raw) match {
+        case JArray(values) =>
+          val persist = persistCollection(mongo_db)_
+          values map { case o: JObject => o } map (Seed.collectionDef) map(_.fold(reportErrors, persist))
+        case _ => log.error("Incomprehensible seed!")
+      }
     }
-    
     None
   } describedAs("Populate the database with seed data.")
   
@@ -43,7 +36,7 @@ trait Mongration extends Project {
     None
   } dependsOn(mongoDrop)
   
-  def reportError(e: String) = log.error(e)
+  def reportErrors(e: List[String]) = log.error(e mkString "\n")
   
   def persistCollection(db: DB)(c: CollectionDef) = c match {
     case CollectionDef(name, docs, indexes) =>
