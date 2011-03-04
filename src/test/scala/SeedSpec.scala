@@ -30,14 +30,14 @@ class SeedSpec extends Specification {
   """).asInstanceOf[JObject]
   
   "docs" should {
-    (Seed2.docs(jdocs) match {
+    (Seed.docs(jdocs) match {
       case Left(x) => ""
       case Right(x :: tail) => x.get("name")
     }) must_== "Chris"
   }
   
   "indexes" should {
-    (Seed2.indexes(jdocs) match {
+    (Seed.indexes(jdocs) match {
       case Left(x) => None
       case Right(IndexDef(o, Some(p)) :: tail) =>
         Some((o.get("lastSeenAt"), p.get("min"), p.get("max"))) 

@@ -7,11 +7,13 @@ import net.liftweb.json._
 import JsonAST._
 
 trait Mongration extends Project {
+  import Implicits._
   
   def mongoConfig: Configurator
-  lazy val (mongo_con, mongo_db) = configure(mongoConfig)
   
   def seed = "src" / "test" / "resources" / "seed.json"
+  
+  lazy val (mongo_con, mongo_db) = configure(mongoConfig)
   
   lazy val mongoDrop = task {
     mongo_db.dropDatabase()
@@ -23,8 +25,9 @@ trait Mongration extends Project {
       case Left(err) => log.error(err)
       case Right(raw) => JsonParser.parse(raw) match {
         case JArray(values) =>
+          val colDefs = values flatMap (Seed.asJObject(_)) map (Seed.collectionDef)
           val persist = persistCollection(mongo_db)_
-          values map { case o: JObject => o } map (Seed.collectionDef) map(_.fold(reportErrors, persist))
+          colDefs.lefts.fold(_ foreach reportErrors, _ foreach persist)
         case _ => log.error("Incomprehensible seed!")
       }
     }

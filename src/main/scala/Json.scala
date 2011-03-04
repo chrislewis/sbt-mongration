@@ -25,14 +25,14 @@ object Json extends Conversions {
   
   /** JArray => List[Any] */
   def parseArray[A](f: JObject => A)(jarr: JArray): List[Any] = {
-    def parseArray(values: List[JValue], acc: List[Any]): List[Any] = values match {
+    def rec(values: List[JValue], acc: List[Any]): List[Any] = values match {
       case Nil => acc
-      case JScalar(value) :: xs => parseArray(xs, value :: acc) 
-      case JArray(values) :: xs => parseArray(xs, parseArray(values, Nil) :: acc)
-      case (o: JObject) :: xs => parseArray(xs, f(o) :: acc)
-      case x :: xs => parseArray(xs, acc) // JNull, JNothing
+      case JScalar(value) :: xs => rec(xs, value :: acc) 
+      case JArray(values) :: xs => rec(xs, rec(values, Nil) :: acc)
+      case (o: JObject) :: xs => rec(xs, f(o) :: acc)
+      case x :: xs => rec(xs, acc) // JNull, JNothing
     }
-    parseArray(jarr.arr, Nil)
+    rec(jarr.arr, Nil)
   }
   
   /** Convert a single-field object into some type. Useful for mapping mongo extended types. */
@@ -43,26 +43,26 @@ object Json extends Conversions {
   
   /** JObject => BasicDBObject */
   def parseMongoDBObject(obj: JObject): BasicDBObject = {
-    def _parseObject(fields: List[JField], obj: BasicDBObject): BasicDBObject = fields match {
+    def rec(fields: List[JField], obj: BasicDBObject): BasicDBObject = fields match {
       case Nil => obj
       case JField(name, JScalar(value)) :: tail =>
         obj.put(name, value);
-        _parseObject(tail, obj)
+        rec(tail, obj)
         
       case JField(name, a: JArray) :: tail =>
         obj.put(name, parseArray(parseMongoDBObject)(a).asJava)
-        _parseObject(tail, obj)
+        rec(tail, obj)
         
       case JField(name, JObject(flds)) :: tail =>
-        val procd = transformMongoType(flds) getOrElse { _parseObject(flds, new BasicDBObject) }
+        val procd = transformMongoType(flds) getOrElse { rec(flds, new BasicDBObject) }
         obj.put(name, procd)
-        _parseObject(tail, obj)
+        rec(tail, obj)
       
       case JField(name, _) :: tail =>
         obj.put(name, null)
-        _parseObject(tail, obj) // JNull, JNothing
+        rec(tail, obj) // JNull, JNothing
     }
-    _parseObject(obj.obj, new BasicDBObject)
+    rec(obj.obj, new BasicDBObject)
   }
   
 }
